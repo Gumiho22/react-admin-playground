@@ -12,4 +12,7 @@ next-env.d.ts
 tsconfig.tsbuildinfo
 .npm-cache
 .edge-profile
-screenshots
+.vercel
+
+# 本地临时产物，不参与版本管理
+_resume_build/

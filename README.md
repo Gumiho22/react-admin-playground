@@ -31,11 +31,6 @@ npm run dev        # http://localhost:3000
 | `npm run typecheck` | `tsc --noEmit` |
 | `node scripts/ui-smoke.mjs` | 无头浏览器冒烟验证 + 截图（见下文） |
 
-> **环境提示**
-> 1. 若 npm 缓存目录不可写，加 `--cache ./.npm-cache`（仓库 `.npmrc` 已指向该目录）。
-> 2. `next dev` / `next build` 会 fork 子进程并通过 IPC 管道通信；在受限沙箱中会报
->    `spawn EPERM`，需在放宽限制的终端里运行。
-
 ## 按需引入方案
 
 ### ECharts：显式注册，不使用整包
