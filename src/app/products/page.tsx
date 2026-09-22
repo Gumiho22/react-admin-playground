@@ -3,10 +3,12 @@ import { Button, Card, Col, Row, Tag } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
 import { RankBarChart } from '@/components/charts/RankBarChart';
 import { ProductsTable, type InventoryRow } from '@/components/products/ProductsTable';
-import { ExportButton } from '@/components/ui/ExportButton';
+import { ExcelExportButton } from '@/components/ui/ExcelExportButton';
 import { PageHead } from '@/components/ui/PageHead';
 import { Paragraph, Text } from '@/components/ui/Text';
 import { productRanks } from '@/data/mock';
+import { defineSheet } from '@/lib/xlsx';
+import type { ProductRank } from '@/types';
 
 export const metadata: Metadata = {
   title: '商品管理',
@@ -21,6 +23,54 @@ const INVENTORY: InventoryRow[] = [
   { name: '智能网关 G100', sku: 'HW-GW-100', stock: 64, safe: 100, category: '硬件设备' },
 ];
 
+/** 导出用的商品行：把库存状态（UI 里的 Tag 文案）落成文本列 */
+interface ProductExportRow extends InventoryRow {
+  status: string;
+  /** 虚拟商品没有库存，导出留空并在说明行标注 */
+  stockValue: number | null;
+}
+
+function stockStatus(row: InventoryRow): string {
+  if (row.stock === null) return '虚拟商品';
+  return row.stock < row.safe ? '低于安全库存' : '库存充足';
+}
+
+const EXPORT_ROWS: ProductExportRow[] = INVENTORY.map((row) => ({
+  ...row,
+  status: stockStatus(row),
+  stockValue: row.stock,
+}));
+
+const EXPORT_SHEETS = [
+  defineSheet<ProductExportRow>({
+    name: '商品档案',
+    title: '商品档案与库存',
+    note: '库存留空表示虚拟商品（SaaS 订阅 / 增值服务）不限库存 · 数据同步时间 2024-05-17 17:40',
+    columns: [
+      { title: '商品名称', key: 'name', width: 22 },
+      { title: 'SKU', key: 'sku', width: 18 },
+      { title: '品类', key: 'category', width: 12 },
+      { title: '库存', key: 'stockValue', type: 'number', width: 10 },
+      { title: '安全库存', key: 'safe', type: 'number', width: 12 },
+      { title: '库存状态', key: 'status', width: 16 },
+    ],
+    rows: EXPORT_ROWS,
+  }),
+  defineSheet<ProductRank>({
+    name: '销量贡献',
+    title: '商品销售排行（本月成交额）',
+    note: '「相对指数」以榜首为 100',
+    columns: [
+      { title: '商品', key: 'name', width: 22 },
+      { title: '品类', key: 'category', width: 12 },
+      { title: '成交额', key: 'amount', type: 'currency' },
+      { title: '相对指数', key: 'ratio', type: 'number' },
+    ],
+    rows: productRanks,
+    total: true,
+  }),
+];
+
 export default function ProductsPage() {
   return (
     <>
@@ -29,7 +79,12 @@ export default function ProductsPage() {
         description="商品档案与库存水位示意数据，表格排序、分页与操作列均由 antd Table 提供。"
         actions={
           <>
-            <ExportButton label="导出商品" content="商品清单已导出（演示）" />
+            <ExcelExportButton
+              label="导出商品"
+              fileName="商品清单"
+              sheets={EXPORT_SHEETS}
+              successMessage="商品清单已导出（商品档案 + 销量贡献）"
+            />
             <Button type="primary" icon={<PlusOutlined />}>
               新建商品
             </Button>

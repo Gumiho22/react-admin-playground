@@ -1,12 +1,13 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { App, Button, Card, Flex, Segmented, Space, theme, Typography } from 'antd';
-import { DownloadOutlined } from '@ant-design/icons';
+import { Card, Flex, Segmented, Space, theme, Typography } from 'antd';
 import { EChart } from './EChart';
+import { ExcelExportButton } from '@/components/ui/ExcelExportButton';
 import { verticalFade } from '@/lib/color';
 import type { EChartsOption } from '@/lib/echarts';
 import { formatCompact, formatCurrency } from '@/lib/format';
+import { defineSheet } from '@/lib/xlsx';
 import type { SeriesPoint } from '@/types';
 
 type RangeKey = '7d' | '14d';
@@ -22,10 +23,14 @@ interface TrendChartProps {
   height?: number;
 }
 
+/** 导出用的趋势行：附上环比（比例，用于 Excel 百分比列） */
+interface TrendExportRow extends SeriesPoint {
+  growth: number | null;
+}
+
 /** 成交趋势：ECharts 折线 + 面积（双序列，含坐标轴指示器十字准星） */
 export function TrendChart({ data, title = '成交趋势', height = 320 }: TrendChartProps) {
   const { token } = theme.useToken();
-  const { message } = App.useApp();
   const [range, setRange] = useState<RangeKey>('14d');
 
   const visible = useMemo(() => {
@@ -36,6 +41,29 @@ export function TrendChart({ data, title = '成交趋势', height = 320 }: Trend
   const total = visible.reduce((sum, point) => sum + point.value, 0);
   const previousTotal = visible.reduce((sum, point) => sum + point.previous, 0);
   const growth = previousTotal === 0 ? 0 : ((total - previousTotal) / previousTotal) * 100;
+  const rangeLabel = RANGES.find((item) => item.value === range)?.label ?? '';
+
+  /** 导出当前选中区间的图表数据（含环比，可在 Excel 里继续做透视） */
+  const buildExportSheet = () =>
+    defineSheet<TrendExportRow>({
+      name: title,
+      title: `${title} · ${rangeLabel}`,
+      note:
+        `区间成交 ${formatCurrency(total)} · 环比 ${growth >= 0 ? '+' : ''}${growth.toFixed(1)}% · ` +
+        '环比 =（本期成交额 - 上一周期）/ 上一周期',
+      columns: [
+        { title: '日期', key: 'label', width: 14 },
+        { title: '本期成交额', key: 'value', type: 'currency' },
+        { title: '上一周期', key: 'previous', type: 'currency' },
+        { title: '环比', key: 'growth', type: 'percent' },
+      ],
+      rows: visible.map((point) => ({
+        ...point,
+        growth: point.previous === 0 ? null : (point.value - point.previous) / point.previous,
+      })),
+      total: true,
+      totalLabel: '区间合计',
+    });
 
   const option = useMemo<EChartsOption>(
     () => ({
@@ -123,13 +151,13 @@ export function TrendChart({ data, title = '成交趋势', height = 320 }: Trend
             onChange={(value) => setRange(value as RangeKey)}
             options={RANGES.map(({ label, value }) => ({ label, value }))}
           />
-          <Button
+          <ExcelExportButton
             size="small"
-            icon={<DownloadOutlined />}
-            onClick={() => message.success('图表数据已导出（演示）')}
-          >
-            导出
-          </Button>
+            label="导出"
+            /* 文件名动态取当前图表名 + 当前区间，例如「成交趋势（全渠道）-近14天-20240517.xlsx」 */
+            fileName={`${title}-${rangeLabel.replace(/\s+/g, '')}`}
+            sheets={() => [buildExportSheet()]}
+          />
         </Space>
       }
       styles={{ body: { paddingTop: 8 } }}

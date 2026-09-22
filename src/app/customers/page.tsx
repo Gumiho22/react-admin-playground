@@ -2,11 +2,12 @@ import type { Metadata } from 'next';
 import { Button, Card, Col, Flex, Row, Statistic, Tag } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
 import { CustomersTable, type CustomerRow } from '@/components/customers/CustomersTable';
-import { ExportButton } from '@/components/ui/ExportButton';
+import { ExcelExportButton } from '@/components/ui/ExcelExportButton';
 import { PageHead } from '@/components/ui/PageHead';
 import { Text } from '@/components/ui/Text';
 import { orders } from '@/data/mock';
 import { formatCurrency } from '@/lib/format';
+import { defineSheet } from '@/lib/xlsx';
 
 export const metadata: Metadata = {
   title: '客户管理',
@@ -20,6 +21,11 @@ const LEVELS = [
 
 function levelOf(amount: number) {
   return LEVELS.find((item) => amount >= item.min) ?? LEVELS[LEVELS.length - 1];
+}
+
+/** 导出用的客户行：在表格行基础上补一个「贡献占比」比例字段 */
+interface CustomerExportRow extends CustomerRow {
+  share: number;
 }
 
 /** 按订单聚合客户台账（纯数据计算，放在服务端完成） */
@@ -58,6 +64,33 @@ export default function CustomersPage() {
   const customers = aggregateCustomers();
   const totalAmount = customers.reduce((sum, item) => sum + item.amount, 0);
 
+  /** 导出结构：客户等级取中文标签，贡献占比换算成比例（0.123 = 12.30%） */
+  const exportSheets = [
+    defineSheet<CustomerExportRow>({
+      name: '客户列表',
+      title: '客户台账',
+      note:
+        `共 ${customers.length} 家成交客户 · 累计成交 ${formatCurrency(totalAmount)} · ` +
+        '贡献占比 = 客户累计成交额 / 全部成交额',
+      columns: [
+        { title: '客户名称', key: 'company', width: 22 },
+        { title: '联系人', key: 'contact', width: 10 },
+        { title: '客户等级', key: 'levelLabel', width: 12 },
+        { title: '负责人', key: 'owner', width: 10 },
+        { title: '订单数', key: 'orderCount', type: 'number', width: 10 },
+        { title: '累计成交额', key: 'amount', type: 'currency' },
+        { title: '贡献占比', key: 'share', type: 'percent', precision: 2 },
+        { title: '最近下单', key: 'lastOrderAt', type: 'date' },
+      ],
+      rows: customers.map((row) => ({
+        ...row,
+        share: totalAmount === 0 ? 0 : row.amount / totalAmount,
+      })),
+      total: true,
+      totalLabel: '合计',
+    }),
+  ];
+
   return (
     <>
       <PageHead
@@ -65,7 +98,7 @@ export default function CustomersPage() {
         description={`共 ${customers.length} 家成交客户 · 累计成交 ${formatCurrency(totalAmount)}`}
         actions={
           <>
-            <ExportButton label="导出客户" content="客户清单已导出（演示）" />
+            <ExcelExportButton label="导出客户" fileName="客户清单" sheets={exportSheets} />
             <Button type="primary" icon={<PlusOutlined />}>
               新增客户
             </Button>
