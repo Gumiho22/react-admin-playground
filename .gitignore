@@ -16,3 +16,5 @@ tsconfig.tsbuildinfo
 
 # 本地临时产物，不参与版本管理
 _resume_build/
+.tmp/
+screenshots/

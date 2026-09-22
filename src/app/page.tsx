@@ -6,12 +6,13 @@ import { RankBarChart } from '@/components/charts/RankBarChart';
 import { TrendChart } from '@/components/charts/TrendChart';
 import { StatCard } from '@/components/dashboard/StatCard';
 import { TodoList } from '@/components/dashboard/TodoList';
-import { ExportButton } from '@/components/ui/ExportButton';
+import { ExcelExportButton } from '@/components/ui/ExcelExportButton';
 import { PageHead } from '@/components/ui/PageHead';
 import { Text, Title } from '@/components/ui/Text';
-import { activities, channelShares, metrics, productRanks, salesSeries, tasks } from '@/data/mock';
+import { activities, channelShares, channelTotal, metrics, productRanks, salesSeries, tasks } from '@/data/mock';
 import { formatCurrency, initials } from '@/lib/format';
-import type { ActivityItem } from '@/types';
+import { defineSheet } from '@/lib/xlsx';
+import type { ActivityItem, ChannelShare, Metric, ProductRank, SeriesPoint, TaskItem } from '@/types';
 
 const TONE_COLOR: Record<ActivityItem['tone'], string> = {
   success: 'green',
@@ -19,6 +20,86 @@ const TONE_COLOR: Record<ActivityItem['tone'], string> = {
   warning: 'orange',
   danger: 'red',
 };
+
+/* -------------------------------------------------------------------------- */
+/* Excel 导出结构：环比 / 占比统一换算成比例（0.128 = 12.80%），Excel 端可继续计算 */
+/* -------------------------------------------------------------------------- */
+
+interface MetricRow extends Metric {
+  deltaRatio: number;
+}
+
+interface ShareRow extends ChannelShare {
+  share: number;
+}
+
+interface TaskRow extends TaskItem {
+  progressRatio: number;
+}
+
+const EXPORT_SHEETS = [
+  defineSheet<MetricRow>({
+    name: '概览指标',
+    title: '核心指标',
+    note: '数据口径：2024-05-17 18:00 快照 · 环比按比例存储（0.128 即 12.80%）',
+    columns: [
+      { title: '指标', key: 'label', width: 16 },
+      { title: '数值', key: 'value', type: 'number' },
+      { title: '单位', key: 'unit', width: 8 },
+      { title: '环比', key: 'deltaRatio', type: 'percent', precision: 2 },
+      { title: '对比口径', key: 'compare', width: 16 },
+    ],
+    rows: metrics.map((metric) => ({ ...metric, deltaRatio: metric.delta / 100 })),
+  }),
+  defineSheet<SeriesPoint>({
+    name: '成交趋势',
+    title: '成交趋势（近 14 天）',
+    note: '单位：元 · 数据来源 salesSeries',
+    columns: [
+      { title: '日期', key: 'label', width: 14 },
+      { title: '本期成交额', key: 'value', type: 'currency' },
+      { title: '上一周期', key: 'previous', type: 'currency' },
+    ],
+    rows: salesSeries,
+    total: true,
+  }),
+  defineSheet<ShareRow>({
+    name: '渠道结构',
+    note: `全渠道成交合计 ${formatCurrency(channelTotal)}`,
+    columns: [
+      { title: '渠道', key: 'name', width: 14 },
+      { title: '成交额', key: 'value', type: 'currency' },
+      { title: '占比', key: 'share', type: 'percent', precision: 2 },
+    ],
+    rows: channelShares.map((item) => ({
+      ...item,
+      share: channelTotal === 0 ? 0 : item.value / channelTotal,
+    })),
+    total: true,
+  }),
+  defineSheet<ProductRank>({
+    name: '商品排行',
+    note: '按成交额降序 · 「相对指数」以榜首为 100',
+    columns: [
+      { title: '商品', key: 'name', width: 22 },
+      { title: '品类', key: 'category', width: 12 },
+      { title: '成交额', key: 'amount', type: 'currency' },
+      { title: '相对指数', key: 'ratio', type: 'number' },
+    ],
+    rows: productRanks,
+    total: true,
+  }),
+  defineSheet<TaskRow>({
+    name: '待办任务',
+    columns: [
+      { title: '任务', key: 'title', width: 24 },
+      { title: '负责人', key: 'owner', width: 12 },
+      { title: '进度', key: 'progressRatio', type: 'percent' },
+      { title: '截止时间', key: 'due', width: 16 },
+    ],
+    rows: tasks.map((task) => ({ ...task, progressRatio: task.progress / 100 })),
+  }),
+];
 
 export default function DashboardPage() {
   return (
@@ -28,7 +109,12 @@ export default function DashboardPage() {
         description="数据更新至 2024-05-17 18:00 · 每 5 分钟自动刷新"
         actions={
           <>
-            <ExportButton />
+            <ExcelExportButton
+              label="导出报表"
+              fileName="经营概览"
+              sheets={EXPORT_SHEETS}
+              successMessage="经营概览已导出（5 个工作表）"
+            />
             <Link href="/orders">
               <Button type="primary" icon={<PlusOutlined />}>
                 新建订单
