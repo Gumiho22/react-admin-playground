@@ -8,6 +8,7 @@ import { TrendChart } from '@/components/charts/TrendChart';
 import { StatCard } from '@/components/dashboard/StatCard';
 import { ExcelExportButton } from '@/components/ui/ExcelExportButton';
 import { PageHead } from '@/components/ui/PageHead';
+import { PermissionGate } from '@/components/ui/PermissionGate';
 import { Text } from '@/components/ui/Text';
 import { channelShares, channelTotal, metrics, productRanks, salesSeries } from '@/data/mock';
 import { formatCurrency, formatNumber } from '@/lib/format';
@@ -170,13 +171,15 @@ export default function AnalyticsPage() {
         title="数据分析"
         description="从渠道、区域与转化漏斗三个视角拆解本月经营结果。"
         actions={
-          <ExcelExportButton
-            label="下载分析报告"
-            type="primary"
-            fileName="数据分析报告"
-            sheets={REPORT_SHEETS}
-            successMessage="分析报告已导出（7 个工作表）"
-          />
+          <PermissionGate code="data:export">
+            <ExcelExportButton
+              label="下载分析报告"
+              type="primary"
+              fileName="数据分析报告"
+              sheets={REPORT_SHEETS}
+              successMessage="分析报告已导出（7 个工作表）"
+            />
+          </PermissionGate>
         }
       />
 

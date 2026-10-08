@@ -2,6 +2,7 @@
 
 import { App, Button, Card, Col, Flex, List, Row, Select, Switch, Tag, Typography } from 'antd';
 import { RightOutlined, SettingOutlined } from '@ant-design/icons';
+import { PermissionGate } from '@/components/ui/PermissionGate';
 
 const BASIC = ['企业名称与 Logo', '主体认证资料', '默认时区 / 币种'];
 const PERMISSIONS = ['角色与权限组', '数据可见范围', '操作审计日志'];
@@ -91,12 +92,14 @@ export function SettingsPanels() {
                       {item.desc}
                     </Typography.Text>
                   </Flex>
-                  <Switch
-                    defaultChecked={item.enabled}
-                    onChange={(checked) =>
-                      message.success(`「${item.title}」已${checked ? '开启' : '关闭'}（演示）`)
-                    }
-                  />
+                  <PermissionGate code="system:setting">
+                    <Switch
+                      defaultChecked={item.enabled}
+                      onChange={(checked) =>
+                        message.success(`「${item.title}」已${checked ? '开启' : '关闭'}（演示）`)
+                      }
+                    />
+                  </PermissionGate>
                 </Flex>
               </List.Item>
             )}
@@ -113,9 +116,11 @@ export function SettingsPanels() {
               <List.Item style={{ paddingInline: 0 }}>
                 <Flex align="center" gap={10} style={{ width: '100%' }}>
                   <Typography.Text style={{ flex: 1 }}>{item}</Typography.Text>
-                  <Button size="small" onClick={() => message.info(`生成「${item}」配置（演示）`)}>
-                    配置
-                  </Button>
+                  <PermissionGate code="system:setting">
+                    <Button size="small" onClick={() => message.info(`生成「${item}」配置（演示）`)}>
+                      配置
+                    </Button>
+                  </PermissionGate>
                 </Flex>
               </List.Item>
             )}
@@ -130,10 +135,14 @@ export function SettingsPanels() {
               修改后的设置会先保存为草稿，确认无误后再发布到生产环境。
             </Typography.Text>
             <Flex gap={8} style={{ marginLeft: 'auto' }}>
-              <Button onClick={() => message.info('已恢复上次保存的配置（演示）')}>重置</Button>
-              <Button type="primary" onClick={() => message.success('设置已保存（演示）')}>
-                保存更改
-              </Button>
+              <PermissionGate code="system:setting">
+                <Button onClick={() => message.info('已恢复上次保存的配置（演示）')}>重置</Button>
+              </PermissionGate>
+              <PermissionGate code="system:setting">
+                <Button type="primary" onClick={() => message.success('设置已保存（演示）')}>
+                  保存更改
+                </Button>
+              </PermissionGate>
             </Flex>
           </Flex>
         </Card>

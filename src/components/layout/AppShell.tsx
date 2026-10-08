@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import {
+  App,
   Avatar,
   Badge,
   Breadcrumb,
@@ -15,6 +16,7 @@ import {
   Menu,
   Space,
   Switch,
+  Tag,
   Tooltip,
   theme,
   type MenuProps,
@@ -30,14 +32,18 @@ import {
   MoonOutlined,
   ProfileOutlined,
   QuestionCircleOutlined,
+  SafetyCertificateOutlined,
   SearchOutlined,
   SettingOutlined,
   SunOutlined,
+  SwapOutlined,
   TeamOutlined,
   UserOutlined,
 } from '@ant-design/icons';
+import { PermissionGuard } from '@/components/layout/PermissionGuard';
+import { usePermission } from '@/components/providers/PermissionProvider';
 import { useColorMode } from '@/components/providers/ThemeProvider';
-import { findNavItem, navSections, selectedMenuKey, type NavIcon } from '@/lib/nav';
+import { findNavItem, isOpenEntryPath, navSections, selectedMenuKey, type NavIcon } from '@/lib/nav';
 
 const { Header, Sider, Content } = Layout;
 
@@ -48,6 +54,7 @@ const NAV_ICONS: Record<NavIcon, ReactNode> = {
   customers: <TeamOutlined />,
   product: <AppstoreOutlined />,
   settings: <SettingOutlined />,
+  permission: <SafetyCertificateOutlined />,
 };
 
 const SIDER_BG = '#101528';
@@ -95,7 +102,9 @@ export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const { token } = theme.useToken();
+  const { message } = App.useApp();
   const { mode, toggleMode } = useColorMode();
+  const { user, role, members, roleOf, has, switchUser } = usePermission();
   const screens = Grid.useBreakpoint();
 
   /* SSR 阶段 screens 为空对象，用 === false 判断可保证首帧与 SSR 一致，避免 hydration 不一致 */
@@ -140,13 +149,17 @@ export function AppShell({ children }: { children: ReactNode }) {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, []);
 
-  const menuItems = useMemo<MenuProps['items']>(
-    () =>
-      navSections.map((section) => ({
+  /* 菜单按当前账号权限过滤：没有权限的入口不渲染（/permissions 属于临时放开） */
+  const menuItems = useMemo<NonNullable<MenuProps['items']>>(() => {
+    const items: NonNullable<MenuProps['items']> = [];
+    for (const section of navSections) {
+      const visible = section.items.filter((item) => isOpenEntryPath(item.href) || has(item.permission));
+      if (visible.length === 0) continue;
+      items.push({
         key: `group-${section.label}`,
-        type: 'group' as const,
+        type: 'group',
         label: section.label,
-        children: section.items.map((item) => ({
+        children: visible.map((item) => ({
           key: item.href,
           icon: NAV_ICONS[item.icon],
           label: item.badge ? (
@@ -158,19 +171,59 @@ export function AppShell({ children }: { children: ReactNode }) {
             item.label
           ),
         })),
-      })),
-    [],
-  );
+      });
+    }
+    return items;
+  }, [has]);
 
   const current = findNavItem(pathname);
 
   const userMenu: MenuProps = {
     items: [
+      {
+        key: 'switch-account',
+        type: 'group',
+        label: '切换账号（演示权限）',
+        children: members.map((member) => {
+          const memberRole = roleOf(member.roleId);
+          return {
+            key: `switch:${member.id}`,
+            icon: <SwapOutlined />,
+            /* 当前账号本身与已停用账号都不可选（停用账号无法登录） */
+            disabled: member.id === user.id || member.status === 'disabled',
+            label: (
+              <Space size={6}>
+                <span>{member.name}</span>
+                <Tag color={memberRole?.color} style={{ marginInlineEnd: 0 }}>
+                  {memberRole?.name ?? '未分配'}
+                </Tag>
+                {member.status === 'disabled' ? <Tag style={{ marginInlineEnd: 0 }}>已停用</Tag> : null}
+              </Space>
+            ),
+          };
+        }),
+      },
+      { type: 'divider' },
       { key: 'profile', icon: <UserOutlined />, label: '个人中心' },
       { key: 'settings', icon: <SettingOutlined />, label: '偏好设置' },
+      { key: 'permissions', icon: <SafetyCertificateOutlined />, label: '权限管理' },
       { type: 'divider' },
       { key: 'logout', icon: <LogoutOutlined />, label: '退出登录', danger: true },
     ],
+    onClick: ({ key }) => {
+      if (key.startsWith('switch:')) {
+        const memberId = key.slice('switch:'.length);
+        const target = members.find((member) => member.id === memberId);
+        switchUser(memberId);
+        message.success(`已切换为「${target?.name ?? ''}」的视角（演示）`);
+        return;
+      }
+      if (key === 'permissions') {
+        router.push('/permissions');
+        return;
+      }
+      message.info('演示环境：该入口暂未接入');
+    },
   };
 
   const menu = (
@@ -275,14 +328,24 @@ export function AppShell({ children }: { children: ReactNode }) {
 
           <Dropdown menu={userMenu} placement="bottomRight" trigger={['click']}>
             <Space style={{ cursor: 'pointer', paddingInline: 4 }}>
-              <Avatar style={{ backgroundColor: '#4f46e5' }}>王</Avatar>
-              {isMobile ? null : <span style={{ fontSize: 13 }}>王思远</span>}
+              <Avatar style={{ backgroundColor: '#4f46e5' }}>{user.name.charAt(0)}</Avatar>
+              {isMobile ? null : (
+                <Space size={6}>
+                  <span style={{ fontSize: 13 }}>{user.name}</span>
+                  <Tag color={role?.color} style={{ marginInlineEnd: 0 }}>
+                    {role?.name ?? '未分配'}
+                  </Tag>
+                </Space>
+              )}
             </Space>
           </Dropdown>
         </Header>
 
         <Content style={{ padding: isMobile ? 12 : 20 }}>
-          <div style={{ maxWidth: 1560, margin: '0 auto' }}>{children}</div>
+          {/* 路由级权限拦截：无权限时渲染 403，不渲染页面内容 */}
+          <div style={{ maxWidth: 1560, margin: '0 auto' }}>
+            <PermissionGuard>{children}</PermissionGuard>
+          </div>
         </Content>
       </Layout>
     </Layout>

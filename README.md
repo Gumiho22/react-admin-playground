@@ -26,12 +26,13 @@ npm run dev        # http://localhost:3000
 | 脚本 | 说明 |
 | --- | --- |
 | `npm run dev` | 开发服务器 |
-| `npm run build` | 生产构建（构建结果 9 个路由全部静态预渲染） |
+| `npm run build` | 生产构建（构建结果 11 个路由全部静态预渲染） |
 | `npm start` | 启动生产服务 |
 | `npm run typecheck` | `tsc --noEmit` |
 | `node scripts/ui-smoke.mjs` | 无头浏览器冒烟验证 + 截图（见下文） |
 | `node scripts/verify-xlsx.cjs` | 导出内核自检：生成一份覆盖全部单元格类型的 .xlsx |
 | `node scripts/verify-export-ui.mjs` | 导出链路端到端验证：真实浏览器点击导出并校验落盘文件 |
+| `node scripts/verify-permission.mjs` | 权限端到端验证：菜单过滤 / 403 / 按钮禁用 / 权限页只读 |
 
 ## 按需引入方案
 
@@ -83,6 +84,7 @@ antd v5 的 `es/` 产物每个组件一个文件且自带 `"use client"`，配�
 | 开关、下拉设置项 | `Switch`、`Select` |
 | 操作反馈 | `App.useApp()` 的 `message`（导出、保存、复制等） |
 | 下载 / 导出 Excel | 自研零依赖导出内核 + `ExcelExportButton` / `useExcelExport`（见「Excel 导出」） |
+| 权限控制 | `PermissionProvider` + 导航 `permission` 字段 + `PermissionGate` + `Result status="403"`（见「权限控制」） |
 | 404 页 | `Result status="404"` |
 | 主题切换 | `ConfigProvider` + `theme.darkAlgorithm` / `defaultAlgorithm` + `Switch` |
 
@@ -236,28 +238,84 @@ node scripts/verify-export-ui.mjs
 并用 Windows 自带 `Expand-Archive` + .NET XML 解析器校验 ZIP 容器与每个 XML 部件，
 确保文件能被真实电子表格软件打开。
 
+## 权限控制（RBAC，mock 数据）
+
+整站权限来自一份 mock 数据，前端三层同时生效：**菜单过滤 → 路由 403 → 按钮门禁**。
+
+| 层 | 位置 | 行为 |
+| --- | --- | --- |
+| 数据 / 判定 | `src/data/permissions.ts`、`src/lib/permission.ts` | 28 项权限、6 个角色、8 个成员；判定是纯函数，Server Component 也能用 |
+| 上下文 | `src/components/providers/PermissionProvider.tsx` | 当前账号、有效权限集合、切换账号、角色/成员可变状态（`usePermission()`） |
+| 菜单 | `src/lib/nav.ts` + `AppShell` | 导航项声明 `permission`，没权限的入口不渲染（分组空了也不渲染） |
+| 路由 | `src/components/layout/PermissionGuard.tsx` | 命中权限码但当前账号没有 → 渲染 403（antd `Result`），不渲染页面内容 |
+| 按钮 | `src/components/ui/PermissionGate.tsx` | `<PermissionGate code="order:create">` 无权限时禁用并给出 Tooltip，或 `mode="hide"` 隐藏 |
+
+**有效权限 = 角色权限 ∪ 个人额外授予 − 个人禁用**（`*` 为通配符，超级管理员拥有全部）。
+个人级例外用来演示「同角色不同权限」：例如陈嘉怡（运营专员）额外获得权限管理入口，同时被禁用「查看成交金额」。
+
+```tsx
+// 声明式门禁：Server Component 里也能直接用
+<PermissionGate code="data:export">
+  <ExcelExportButton label="导出报表" sheets={EXPORT_SHEETS} />
+</PermissionGate>
+
+// 命令式：客户端组件里按需判断
+const { has } = usePermission();
+if (has('order:refund')) { /* ... */ }
+```
+
+### 权限后台 `/permissions`
+
+三个视角共用同一份内存状态，改完立刻作用于菜单 / 路由 / 按钮：
+
+| Tab | 内容 |
+| --- | --- |
+| 成员权限 | 8 个账号的成员 / 部门岗位 / 角色（可改）/ 有效权限数量与进度 / 状态（可停用）/ 最近登录；「查看权限」抽屉按业务分组列出每条权限及其来源（来自角色 / 额外授予 / 被禁用覆盖 / 未授予） |
+| 角色权限矩阵 | 行 = 权限项，列 = 角色，勾选即改角色权限；超级管理员列固定全选（通配符） |
+| 权限清单 | 权限码的权威定义（分组 / 说明）+ 反查「哪些角色拥有它」 |
+
+顶栏右侧头像下拉可以**切换登录账号**，用来现场演示权限差异（选择记在 `localStorage: b-admin:user`）。
+所有改动都只存在前端内存里，刷新页面回到初始 mock 值（页面右上角有「重置为初始 mock 数据」）。
+
+### 入口临时放开
+
+按需求，权限管理入口**暂时对所有账号放开显示**：`src/lib/nav.ts` 中的
+
+```ts
+export const OPEN_ENTRY_PATHS: readonly string[] = ['/permissions'];
+```
+
+会让该菜单项与路由拦截都放行（页面顶部有醒目提示）。收敛时把它清空即可回到 `page:permission` 控制；
+页面内的编辑动作仍按 `system:role` / `system:member` 收敛——没有编辑权限时矩阵只读、角色与状态不可改。
+
+> ⚠️ 这是**前端门禁**，负责体验与演示。真实项目里同一套权限码必须在服务端（Route Handler / BFF）
+> 再校验一次，前端拦截不能当作安全边界。
+
 ## 目录结构
 
 ```
 src/
 ├─ app/
-│  ├─ layout.tsx            # AntdRegistry + ThemeProvider + AppShell，含主题引导脚本
+│  ├─ layout.tsx            # AntdRegistry + ThemeProvider + PermissionProvider + AppShell
 │  ├─ globals.css           # 仅保留页面底色/滚动条等 antd 不覆盖的样式
 │  ├─ icon.svg              # favicon
 │  ├─ page.tsx              # 工作台（Server）     ├─ analytics/page.tsx  数据分析
 │  ├─ orders/page.tsx       # 订单管理（Server）    ├─ customers/page.tsx  客户管理
 │  ├─ products/page.tsx     # 商品管理（Server）    ├─ settings/page.tsx   系统设置
-│  └─ not-found.tsx         # antd Result 404
+│  ├─ permissions/page.tsx  # 权限管理（Server）    └─ not-found.tsx      antd Result 404
 ├─ components/
-│  ├─ providers/ThemeProvider.tsx  # ConfigProvider(zhCN) + 深浅色算法 + antd App
-│  ├─ layout/AppShell.tsx          # Layout/Sider/Menu/Header/Drawer/Dropdown
+│  ├─ providers/                   # ThemeProvider（主题/antd App）、PermissionProvider（RBAC）
+│  ├─ layout/AppShell.tsx          # Layout/Sider/Menu/Header/Drawer/Dropdown + 菜单权限过滤
+│  ├─ layout/PermissionGuard.tsx   # 路由级 403
+│  ├─ permissions/                 # 权限后台：成员表 / 角色矩阵 / 权限清单 / 权限明细抽屉
 │  ├─ charts/                      # EChart 容器 + 6 个 ECharts 图表组件
 │  ├─ dashboard/                   # StatCard、TodoList
 │  ├─ orders/ customers/ products/ # antd Table 客户端组件
 │  ├─ settings/SettingsPanels.tsx
-│  └─ ui/                          # PageHead、Text（Typography 客户端包装）、ExcelExportButton
+│  └─ ui/                          # PageHead、Text、ExcelExportButton、PermissionGate
 ├─ data/mock.ts             # 确定性伪随机 Mock（保证 SSR/CSR 一致）
-├─ lib/                     # echarts 注册、color、format、nav、orderDisplay、xlsx（导出内核）
+├─ data/permissions.ts      # 权限项 / 角色 / 成员的 mock 数据
+├─ lib/                     # echarts、color、format、nav（含权限映射）、orderDisplay、permission、xlsx
 └─ types/index.ts
 ```
 
@@ -294,7 +352,7 @@ npm run dev
 $env:BASE_URL="http://localhost:3000"; node scripts/ui-smoke.mjs
 ```
 
-最近一次结果（dev 与生产均通过）：
+最近一次结果（生产构建，Chrome 154 headless）：
 
 ```
 /            canvas=7  ✓  table=0 ✓  theme=light  btnRadius=8px  errors=0✓  warnings=0
@@ -302,8 +360,25 @@ $env:BASE_URL="http://localhost:3000"; node scripts/ui-smoke.mjs
 /orders      canvas=0  ✓  table=1 ✓  theme=light  btnRadius=8px  errors=0✓  warnings=0
 /customers   canvas=0  ✓  table=1 ✓  theme=light  btnRadius=8px  errors=0✓  warnings=0
 /products    canvas=1  ✓  table=1 ✓  theme=light  btnRadius=8px  errors=0✓  warnings=0
+/permissions canvas=0  ✓  table=1 ✓  theme=light  btnRadius=8px  errors=0✓  warnings=0
 /settings    canvas=0  ✓  table=0 ✓  theme=light  btnRadius=8px  errors=0✓  warnings=0
 ```
+
+权限场景另用 `node scripts/verify-permission.mjs` 逐账号断言（最近一次 9/9 通过）：
+
+```
+✓  王思远（超级管理员）      /            菜单 7 项全开，导出可用
+✓  何以宁（访客）           /            菜单[工作台,权限管理]                  导出禁用=true
+✓  何以宁（访客）           /products    403=true
+✓  何以宁（访客）           /orders      403=true
+✓  孙雅（已停用）           /            回落默认账号（停用账号无法登录）
+✓  欧阳靖（销售+额外商品页）  /products    菜单含商品管理，403=false（个人额外授予生效）
+✓  陈嘉怡（运营专员）        /settings    403=true（无 page:settings）
+✓  陈嘉怡（运营专员）        /permissions 403=false（入口临时放开） 矩阵只读=true（无 system:role）
+✓  李梦琪（系统管理员）      /permissions 403=false               矩阵只读=false
+```
+
+顶栏「切换账号」下拉也用无头浏览器点过：停用账号（孙雅）不可点，切到访客账号后左侧菜单立即收敛为 2 项。
 
 截图输出在 `screenshots/`（浅色 + `-dark` 深色各一套）。
 

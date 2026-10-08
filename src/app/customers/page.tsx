@@ -4,6 +4,7 @@ import { PlusOutlined } from '@ant-design/icons';
 import { CustomersTable, type CustomerRow } from '@/components/customers/CustomersTable';
 import { ExcelExportButton } from '@/components/ui/ExcelExportButton';
 import { PageHead } from '@/components/ui/PageHead';
+import { PermissionGate } from '@/components/ui/PermissionGate';
 import { Text } from '@/components/ui/Text';
 import { orders } from '@/data/mock';
 import { formatCurrency } from '@/lib/format';
@@ -98,10 +99,14 @@ export default function CustomersPage() {
         description={`共 ${customers.length} 家成交客户 · 累计成交 ${formatCurrency(totalAmount)}`}
         actions={
           <>
-            <ExcelExportButton label="导出客户" fileName="客户清单" sheets={exportSheets} />
-            <Button type="primary" icon={<PlusOutlined />}>
-              新增客户
-            </Button>
+            <PermissionGate code="customer:export">
+              <ExcelExportButton label="导出客户" fileName="客户清单" sheets={exportSheets} />
+            </PermissionGate>
+            <PermissionGate code="customer:create">
+              <Button type="primary" icon={<PlusOutlined />}>
+                新增客户
+              </Button>
+            </PermissionGate>
           </>
         }
       />

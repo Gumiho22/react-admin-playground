@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import { Card, Flex, Segmented, Space, theme, Typography } from 'antd';
 import { EChart } from './EChart';
 import { ExcelExportButton } from '@/components/ui/ExcelExportButton';
+import { PermissionGate } from '@/components/ui/PermissionGate';
 import { verticalFade } from '@/lib/color';
 import type { EChartsOption } from '@/lib/echarts';
 import { formatCompact, formatCurrency } from '@/lib/format';
@@ -151,13 +152,15 @@ export function TrendChart({ data, title = '成交趋势', height = 320 }: Trend
             onChange={(value) => setRange(value as RangeKey)}
             options={RANGES.map(({ label, value }) => ({ label, value }))}
           />
-          <ExcelExportButton
-            size="small"
-            label="导出"
-            /* 文件名动态取当前图表名 + 当前区间，例如「成交趋势（全渠道）-近14天-20240517.xlsx」 */
-            fileName={`${title}-${rangeLabel.replace(/\s+/g, '')}`}
-            sheets={() => [buildExportSheet()]}
-          />
+          <PermissionGate code="data:export">
+            <ExcelExportButton
+              size="small"
+              label="导出"
+              /* 文件名动态取当前图表名 + 当前区间，例如「成交趋势（全渠道）-近14天-20240517.xlsx」 */
+              fileName={`${title}-${rangeLabel.replace(/\s+/g, '')}`}
+              sheets={() => [buildExportSheet()]}
+            />
+          </PermissionGate>
         </Space>
       }
       styles={{ body: { paddingTop: 8 } }}

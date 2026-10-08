@@ -5,6 +5,7 @@ import { RankBarChart } from '@/components/charts/RankBarChart';
 import { ProductsTable, type InventoryRow } from '@/components/products/ProductsTable';
 import { ExcelExportButton } from '@/components/ui/ExcelExportButton';
 import { PageHead } from '@/components/ui/PageHead';
+import { PermissionGate } from '@/components/ui/PermissionGate';
 import { Paragraph, Text } from '@/components/ui/Text';
 import { productRanks } from '@/data/mock';
 import { defineSheet } from '@/lib/xlsx';
@@ -79,15 +80,19 @@ export default function ProductsPage() {
         description="商品档案与库存水位示意数据，表格排序、分页与操作列均由 antd Table 提供。"
         actions={
           <>
-            <ExcelExportButton
-              label="导出商品"
-              fileName="商品清单"
-              sheets={EXPORT_SHEETS}
-              successMessage="商品清单已导出（商品档案 + 销量贡献）"
-            />
-            <Button type="primary" icon={<PlusOutlined />}>
-              新建商品
-            </Button>
+            <PermissionGate code="product:export">
+              <ExcelExportButton
+                label="导出商品"
+                fileName="商品清单"
+                sheets={EXPORT_SHEETS}
+                successMessage="商品清单已导出（商品档案 + 销量贡献）"
+              />
+            </PermissionGate>
+            <PermissionGate code="product:create">
+              <Button type="primary" icon={<PlusOutlined />}>
+                新建商品
+              </Button>
+            </PermissionGate>
           </>
         }
       />

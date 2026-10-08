@@ -4,6 +4,7 @@ import { Button, Card, Col, Row, Statistic, Tag } from 'antd';
 import { ImportOutlined, PlusOutlined } from '@ant-design/icons';
 import { OrdersTable } from '@/components/orders/OrdersTable';
 import { PageHead } from '@/components/ui/PageHead';
+import { PermissionGate } from '@/components/ui/PermissionGate';
 import { Text } from '@/components/ui/Text';
 import { orders, statusMeta } from '@/data/mock';
 import { formatCurrency } from '@/lib/format';
@@ -35,12 +36,16 @@ export default function OrdersPage() {
         description="支持关键字检索、状态与渠道筛选，表头可点击排序，分页与合计由 antd Table 统一处理。"
         actions={
           <>
-            <Button icon={<ImportOutlined />}>批量导入</Button>
-            <Link href="/orders">
-              <Button type="primary" icon={<PlusOutlined />}>
-                新建订单
-              </Button>
-            </Link>
+            <PermissionGate code="order:import">
+              <Button icon={<ImportOutlined />}>批量导入</Button>
+            </PermissionGate>
+            <PermissionGate code="order:create" mode="hide">
+              <Link href="/orders">
+                <Button type="primary" icon={<PlusOutlined />}>
+                  新建订单
+                </Button>
+              </Link>
+            </PermissionGate>
           </>
         }
       />

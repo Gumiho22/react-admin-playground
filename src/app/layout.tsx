@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import { AntdRegistry } from '@ant-design/nextjs-registry';
 import { AppShell } from '@/components/layout/AppShell';
+import { PermissionProvider } from '@/components/providers/PermissionProvider';
 import { ThemeProvider } from '@/components/providers/ThemeProvider';
 import './globals.css';
 
@@ -34,7 +35,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         {/* AntdRegistry 负责 App Router 下 antd cssinjs 的样式抽取，避免闪烁 */}
         <AntdRegistry>
           <ThemeProvider>
-            <AppShell>{children}</AppShell>
+            {/* 权限上下文：菜单过滤、路由拦截、按钮门禁都读它（数据为 mock） */}
+            <PermissionProvider>
+              <AppShell>{children}</AppShell>
+            </PermissionProvider>
           </ThemeProvider>
         </AntdRegistry>
       </body>

@@ -18,6 +18,7 @@ import {
 import { ExportOutlined, ReloadOutlined, SearchOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { ExcelExportButton } from '@/components/ui/ExcelExportButton';
+import { PermissionGate } from '@/components/ui/PermissionGate';
 import { channelMeta, orderChannels, orderStatuses, statusMeta } from '@/data/mock';
 import { formatCurrency, formatDateTime, initials } from '@/lib/format';
 import { statusTagColor } from '@/lib/orderDisplay';
@@ -179,34 +180,38 @@ export function OrdersTable({ rows }: { rows: Order[] }) {
       }
       extra={
         <Space>
-          <ExcelExportButton
-            label="导出筛选结果"
-            icon={<ExportOutlined />}
-            fileName="订单列表-筛选结果"
-            disabled={filtered.length === 0}
-            sheets={() => [
-              buildOrderSheet({
-                name: '订单列表',
-                title: '订单列表（按当前筛选条件）',
-                note: filterNote,
-                rows: filtered,
-              }),
-            ]}
-          />
-          <ExcelExportButton
-            type="primary"
-            label={selectedRows.length > 0 ? `导出所选(${selectedRows.length})` : '导出所选'}
-            fileName="订单列表-已选"
-            disabled={selectedRows.length === 0}
-            sheets={() => [
-              buildOrderSheet({
-                name: '已选订单',
-                title: '已选订单',
-                note: `已选 ${selectedRows.length} 笔，合计 ${formatCurrency(selectedAmount)}`,
-                rows: selectedRows,
-              }),
-            ]}
-          />
+          <PermissionGate code="order:export">
+            <ExcelExportButton
+              label="导出筛选结果"
+              icon={<ExportOutlined />}
+              fileName="订单列表-筛选结果"
+              disabled={filtered.length === 0}
+              sheets={() => [
+                buildOrderSheet({
+                  name: '订单列表',
+                  title: '订单列表（按当前筛选条件）',
+                  note: filterNote,
+                  rows: filtered,
+                }),
+              ]}
+            />
+          </PermissionGate>
+          <PermissionGate code="order:export">
+            <ExcelExportButton
+              type="primary"
+              label={selectedRows.length > 0 ? `导出所选(${selectedRows.length})` : '导出所选'}
+              fileName="订单列表-已选"
+              disabled={selectedRows.length === 0}
+              sheets={() => [
+                buildOrderSheet({
+                  name: '已选订单',
+                  title: '已选订单',
+                  note: `已选 ${selectedRows.length} 笔，合计 ${formatCurrency(selectedAmount)}`,
+                  rows: selectedRows,
+                }),
+              ]}
+            />
+          </PermissionGate>
         </Space>
       }
       styles={{ body: { paddingTop: 16 } }}

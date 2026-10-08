@@ -8,6 +8,7 @@ import { StatCard } from '@/components/dashboard/StatCard';
 import { TodoList } from '@/components/dashboard/TodoList';
 import { ExcelExportButton } from '@/components/ui/ExcelExportButton';
 import { PageHead } from '@/components/ui/PageHead';
+import { PermissionGate } from '@/components/ui/PermissionGate';
 import { Text, Title } from '@/components/ui/Text';
 import { activities, channelShares, channelTotal, metrics, productRanks, salesSeries, tasks } from '@/data/mock';
 import { formatCurrency, initials } from '@/lib/format';
@@ -109,17 +110,21 @@ export default function DashboardPage() {
         description="数据更新至 2024-05-17 18:00 · 每 5 分钟自动刷新"
         actions={
           <>
-            <ExcelExportButton
-              label="导出报表"
-              fileName="经营概览"
-              sheets={EXPORT_SHEETS}
-              successMessage="经营概览已导出（5 个工作表）"
-            />
-            <Link href="/orders">
-              <Button type="primary" icon={<PlusOutlined />}>
-                新建订单
-              </Button>
-            </Link>
+            <PermissionGate code="data:export">
+              <ExcelExportButton
+                label="导出报表"
+                fileName="经营概览"
+                sheets={EXPORT_SHEETS}
+                successMessage="经营概览已导出（5 个工作表）"
+              />
+            </PermissionGate>
+            <PermissionGate code="order:create" mode="hide">
+              <Link href="/orders">
+                <Button type="primary" icon={<PlusOutlined />}>
+                  新建订单
+                </Button>
+              </Link>
+            </PermissionGate>
           </>
         }
       />

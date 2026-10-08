@@ -158,6 +158,13 @@ async function main() {
       deviceScaleFactor: 1,
       mobile: false,
     }, sessionId);
+    /* 固定用超级管理员账号（u-001）验证导出，避免受上一次会话的账号影响：
+       导出按钮现在受权限控制，非超管账号可能被禁用导致用例失败 */
+    await cdp.send(
+      'Page.addScriptToEvaluateOnNewDocument',
+      { source: `try{localStorage.setItem('b-admin:user','u-001')}catch(e){}` },
+      sessionId,
+    );
 
     const loaded = new Promise((resolve) => {
       const timer = setTimeout(resolve, 15000);

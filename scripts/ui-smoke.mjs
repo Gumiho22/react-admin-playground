@@ -30,6 +30,7 @@ const ROUTES = [
   { path: '/orders', expectCanvas: 0, expectTable: 1 },
   { path: '/customers', expectCanvas: 0, expectTable: 1 },
   { path: '/products', expectCanvas: 1, expectTable: 1 },
+  { path: '/permissions', expectCanvas: 0, expectTable: 1 },
   { path: '/settings', expectCanvas: 0, expectTable: 0 },
 ];
 

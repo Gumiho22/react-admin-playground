@@ -86,3 +86,49 @@ export interface Paginated<T> {
   pageSize: number;
   pageCount: number;
 }
+
+/* -------------------------------------------------------------------------- */
+/* 权限（RBAC，全部由 mock 数据模拟）                                          */
+/* -------------------------------------------------------------------------- */
+
+/** 权限项：权限码统一为 `资源:动作`，`*` 代表全部权限 */
+export interface Permission {
+  code: string;
+  name: string;
+  /** 所属分组（页面访问 / 订单 / 客户 / 商品 / 数据 / 系统） */
+  group: string;
+  description: string;
+}
+
+/** 角色：一组权限的集合 */
+export interface Role {
+  id: string;
+  name: string;
+  description: string;
+  /** antd Tag 语义色 */
+  color: string;
+  permissions: string[];
+  /** 内置角色（不可删除） */
+  builtin?: boolean;
+}
+
+/** 成员账号状态 */
+export type MemberStatus = 'active' | 'disabled';
+
+/**
+ * 成员账号：有效权限 = 角色权限 ∪ 个人额外授予 − 个人禁用
+ * （个人级配置用来演示「同角色不同权限」的例外场景）
+ */
+export interface Member {
+  id: string;
+  name: string;
+  account: string;
+  email: string;
+  department: string;
+  title: string;
+  roleId: string;
+  status: MemberStatus;
+  lastLoginAt: string;
+  extraPermissions?: string[];
+  deniedPermissions?: string[];
+}
